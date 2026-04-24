@@ -1,0 +1,17 @@
+[Unit]
+Description = Fiddle pocketbase
+
+[Service]
+Type             = simple
+User             = root
+Group            = root
+LimitNOFILE      = 4096
+Restart          = always
+RestartSec       = 5s
+StandardOutput   = append:/home/willi/sw/fiddle-pocketbase/std.log
+StandardError    = append:/home/willi/sw/fiddle-pocketbase/std.log
+WorkingDirectory = /home/willi/sw/fiddle-pocketbase
+ExecStart        = /home/willi/sw/fiddle-pocketbase/pocketbase serve --http=127.0.0.1:8090
+
+[Install]
+WantedBy = multi-user.target

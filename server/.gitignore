@@ -1,0 +1,7 @@
+data/
+.env
+
+# Python stuff
+.venv/
+.ruff_cache/
+__pycache__/

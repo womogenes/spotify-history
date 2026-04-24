@@ -1,5 +1,5 @@
 <script>
-  console.log('hello world');
+console.log('hello world');
 </script>
 
 <svelte:head>

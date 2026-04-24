@@ -1,55 +1,56 @@
 <script>
-  import { formatDuration } from 'lib/logic/utils';
-  import { onMount } from 'svelte';
-  import ldb from 'localdata';
-  import { colorThief, rgb2hsl } from 'lib/utils';
-  import { trackCache } from 'lib/stores';
+import { formatDuration } from 'lib/logic/utils';
+import { onMount } from 'svelte';
+import { colorThief, rgb2hsl } from 'lib/utils';
+import { trackCache } from 'lib/stores';
 
-  let { track, ms } = $props();
+let { track, ms } = $props();
 
-  // Fetch album cover URL from server
-  let trackId = track.track_uri.split(':').pop();
-  let albumCoverUrl = $state('');
+// Fetch album cover URL from server
+let trackId = $derived(track.track_uri.split(':').pop());
+let albumCoverUrl = $state('');
 
-  // On image load, compute average color
-  let color = $state(`0%, 0%, 20%`);
-  let albumCoverEl;
+// On image load, compute average color
+let color = $state(`0%, 0%, 20%`);
+let albumCoverEl;
 
-  // Load these values from store if they exist
-  let thisTrackCache = $trackCache[`track_${trackId}`];
-  if (thisTrackCache) {
-    albumCoverUrl = thisTrackCache[0];
-    color = thisTrackCache[1];
+// Load these values from store if they exist
+$effect(() => {
+  const cachedTrack = $trackCache[`track_${trackId}`];
+  if (cachedTrack) {
+    albumCoverUrl = cachedTrack[0];
+    color = cachedTrack[1];
+  }
+});
+
+onMount(async () => {
+  // Fetch album cover
+  try {
+    if (albumCoverUrl === '') {
+      albumCoverUrl = await (await fetch(`/api/album-cover?track-id=${trackId}`)).text();
+      trackCache.update((x) => ({ ...x, [`track_${trackId}`]: [albumCoverUrl, color] }));
+    }
+  } catch {
+    console.log('Error fetching album cover');
   }
 
-  onMount(async () => {
-    // Fetch album cover
+  // Compute average color
+  if (!albumCoverEl) return;
+  albumCoverEl.crossOrigin = 'Anonymous';
+  albumCoverEl.onload = () => {
+    // Need a try-catch because sometimes colorthief throws a fit
     try {
-      if (albumCoverUrl === '') {
-        albumCoverUrl = await (await fetch(`/api/album-cover?track-id=${trackId}`)).text();
-        trackCache.update((x) => ({ ...x, [`track_${trackId}`]: [albumCoverUrl, color] }));
-      }
+      let [r, g, b] = colorThief.getColor(albumCoverEl);
+      let [h, s, l] = rgb2hsl(r / 255, g / 255, b / 255);
+      [h, s, l] = [h, s, h >= 45 && h <= 75 ? Math.min(l, 0.35) : Math.min(l, 0.55)];
+      s = Math.min(s, 0.3);
+      color = `${h} ${s * 100}% ${l * 100}`;
+      trackCache.update((x) => ({ ...x, [`track_${trackId}`]: [albumCoverUrl, color] }));
     } catch {
-      console.log('Error fetching album cover');
+      return;
     }
-
-    // Compute average color
-    if (!albumCoverEl) return;
-    albumCoverEl.crossOrigin = 'Anonymous';
-    albumCoverEl.onload = () => {
-      // Need a try-catch because sometimes colorthief throws a fit
-      try {
-        let [r, g, b] = colorThief.getColor(albumCoverEl);
-        let [h, s, l] = rgb2hsl(r / 255, g / 255, b / 255);
-        [h, s, l] = [h, s, h >= 45 && h <= 75 ? Math.min(l, 0.35) : Math.min(l, 0.55)];
-        s = Math.min(s, 0.3);
-        color = `${h} ${s * 100}% ${l * 100}`;
-        trackCache.update((x) => ({ ...x, [`track_${trackId}`]: [albumCoverUrl, color] }));
-      } catch {
-        return;
-      }
-    };
-  });
+  };
+});
 </script>
 
 <a

@@ -1,6 +1,6 @@
 <script>
-  import { cn } from '$lib/utils.js';
-  let { class: className = undefined, tag = 'h3', children, ...rest } = $props();
+import { cn } from '$lib/utils.js';
+let { class: className = undefined, tag = 'h3', children, ...rest } = $props();
 </script>
 
 <svelte:element

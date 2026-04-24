@@ -1,6 +1,6 @@
 <script>
-  import '../app.css';
-  let { children } = $props();
+import '../app.css';
+let { children } = $props();
 </script>
 
 <svelte:head>
@@ -25,7 +25,7 @@
 </div>
 
 <style>
-  :global(html, body) {
-    @apply h-full;
-  }
+:global(html, body) {
+  @apply h-full;
+}
 </style>

@@ -1,27 +1,27 @@
 <script>
-  import { Slider } from '$lib/components/ui/slider';
-  import { getSongPopularity } from '$lib/logic/summary';
-  import { formatTimestamp } from '$lib/logic/utils';
-  import TrackItem from 'lib/components/TrackItem.svelte';
-  import { flip } from 'svelte/animate';
-  import { fade, slide } from 'svelte/transition';
+import { Slider } from '$lib/components/ui/slider';
+import { getSongPopularity } from '$lib/logic/summary';
+import { formatTimestamp } from '$lib/logic/utils';
+import TrackItem from 'lib/components/TrackItem.svelte';
+import { flip } from 'svelte/animate';
+import { fade, slide } from 'svelte/transition';
 
-  let { history = [] } = $props();
+let { history = [] } = $props();
 
-  let minTime = $state(0);
-  let maxTime = $state(0);
-  let queryRange = $state(3600 * 24 * 7 * 1000);
-  let sliderTimeValue = $state([0]);
-  let sliderTime = $derived(sliderTimeValue[0] * 1e3 + minTime);
-  let songPopularity = $derived.by(() => {
-    return getSongPopularity(history, sliderTime - queryRange, sliderTime);
-  });
+let minTime = $state(0);
+let maxTime = $state(0);
+let queryRange = $state(3600 * 24 * 7 * 1000);
+let sliderTimeValue = $state([0]);
+let sliderTime = $derived(sliderTimeValue[0] * 1e3 + minTime);
+let songPopularity = $derived.by(() => {
+  return getSongPopularity(history, sliderTime - queryRange, sliderTime);
+});
 
-  $effect(() => {
-    minTime = history[0].ts;
-    maxTime = history[history.length - 1].ts;
-    sliderTimeValue = [(maxTime - minTime) / 1e3]; // Jump to end of history
-  });
+$effect(() => {
+  minTime = history[0].ts;
+  maxTime = history[history.length - 1].ts;
+  sliderTimeValue = [(maxTime - minTime) / 1e3]; // Jump to end of history
+});
 </script>
 
 <div class="mx-auto flex h-full w-full max-w-4xl flex-col gap-1 overflow-x-auto">
@@ -53,7 +53,7 @@
     <div class="flex flex-col gap-2">
       {#each songPopularity as [track, ms], index (track.track_uri)}
         <div style={`z-index: ${1000 - 100 * index}`}>
-          <TrackItem {track} {ms} />
+          <TrackItem track={track} ms={ms} />
         </div>
       {/each}
     </div>

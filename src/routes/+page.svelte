@@ -1,51 +1,51 @@
 <script>
-  // https://github.com/DVLP/localStorageDB
-  import ldb from 'localdata';
+import { ArrowUp, Loader } from 'lucide-svelte';
+import { onMount } from 'svelte';
+import { mergeHistory, parseHistoryJSON } from '$lib/logic/history-json-parser';
+import { loadStreamingHistory, saveStreamingHistory } from '$lib/storage/history-store';
+import Dropzone from 'svelte-file-dropzone';
+import { cn } from 'lib/utils';
+import { Skeleton } from 'lib/components/ui/skeleton';
+import TrackList from './TrackList.svelte';
+import { formatTimestamp } from 'lib/logic/utils';
 
-  import { ArrowUp, Loader } from 'lucide-svelte';
-  import { mergeHistory, parseHistoryJSON } from '$lib/logic/history-json-parser';
-  import Dropzone from 'svelte-file-dropzone';
-  import { cn } from 'lib/utils';
-  import { Skeleton } from 'lib/components/ui/skeleton';
-  import TrackList from './TrackList.svelte';
-  import { formatTimestamp } from 'lib/logic/utils';
+// UI loading state vars
+let uploadedFiles = $state(0);
+let loadedFiles = $state(0);
+let loadedLocalStorage = $state(false);
+let doneUploading = $derived(loadedFiles === uploadedFiles);
 
-  // UI loading state vars
-  let uploadedFiles = $state(0);
-  let loadedFiles = $state(0);
-  let loadedLocalStorage = $state(false);
-  let doneUploading = $derived(loadedFiles === uploadedFiles);
+let history = $state([]);
+onMount(async () => {
+  const storedHistory = await loadStreamingHistory();
+  if (storedHistory.length > 0) history = mergeHistory(history, storedHistory);
+  loadedLocalStorage = true;
+});
 
-  let history = $state([]);
-  ldb.get('streaming_history', (v) => {
-    if (v) history = mergeHistory(history, v);
-    loadedLocalStorage = true;
+const handleFileDrop = (e) => {
+  const { acceptedFiles } = e.detail;
+  acceptedFiles.forEach((file) => {
+    if (!file.name.match(/Streaming_History_Audio_/g)) return;
+    const reader = new FileReader();
+    uploadedFiles++;
+    reader.readAsText(file);
+    reader.onload = (e) => {
+      // Reader has finished parsing the file; add it to localStorage
+      try {
+        const json = e.target.result;
+        const parsedJson = parseHistoryJSON(json);
+        history = mergeHistory(history, parsedJson);
+        void saveStreamingHistory($state.snapshot(history));
+        loadedFiles++;
+      } catch (e) {
+        // Did not successfully upload file, lower count
+        uploadedFiles--;
+
+        throw e;
+      }
+    };
   });
-
-  const handleFileDrop = (e) => {
-    const { acceptedFiles } = e.detail;
-    acceptedFiles.forEach((file) => {
-      if (!file.name.match(/Streaming_History_Audio_/g)) return;
-      const reader = new FileReader();
-      uploadedFiles++;
-      reader.readAsText(file);
-      reader.onload = (e) => {
-        // Reader has finished parsing the file; add it to localStorage
-        try {
-          const json = e.target.result;
-          const parsedJson = parseHistoryJSON(json);
-          history = mergeHistory(history, parsedJson);
-          ldb.set('streaming_history', $state.snapshot(history));
-          loadedFiles++;
-        } catch (e) {
-          // Did not successfully upload file, lower count
-          uploadedFiles--;
-
-          throw e;
-        }
-      };
-    });
-  };
+};
 </script>
 
 <div class="flex h-full">
@@ -117,7 +117,7 @@
   <!-- Main data -->
   <div class="w-full p-4">
     {#if history.length > 0 && loadedLocalStorage}
-      <TrackList {history} />
+      <TrackList history={history} />
     {:else if loadedLocalStorage && doneUploading}
       <div class="flex h-full items-center justify-center">Upload some files to start.</div>
     {:else}

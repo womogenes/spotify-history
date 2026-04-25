@@ -7,11 +7,17 @@ import glob
 import json
 import hashlib
 from tqdm import tqdm
+
 import pocketbase
+
 from dotenv import load_dotenv
 import os
 
-print(load_dotenv(str(Path(__file__).parents[1] / ".env")))
+from streams import get_all_streams
+
+load_dotenv(str(Path(__file__).parents[1] / ".env"))
+
+BATCH_SIZE = 500
 
 
 def hash_dict(d: dict) -> str:
@@ -25,23 +31,39 @@ def hash_dict(d: dict) -> str:
 
 
 if __name__ == "__main__":
-    audio_file_pattern = str(
-        Path(__file__).parents[1] / "data/spotify/**/Streaming_History_Audio_*.json"
-    )
+    # Get all streams
+    all_streams = get_all_streams()
 
     # Initialize pocketbase
     pb = pocketbase.Client("https://fiddle-db.wfeng.dev")
-    auth_data = pb.collection("users").auth_with_password(
+    auth_data = pb.collection("_superusers").auth_with_password(
         username_or_email=os.environ["PB_EMAIL"],
         password=os.environ["PB_PASSWORD"],
     )
 
-    # Cursed Python lol
-    json_files = glob.glob(audio_file_pattern, recursive=True)[:1]
+    uploaded = 0
 
-    print("Loading streaming history...")
-    all_streams = sum([json.loads(Path(file).read_text()) for file in json_files], [])
-    print(f"Loaded {len(all_streams):,} streams")
+    for start in tqdm(range(0, len(all_streams), BATCH_SIZE), ncols=80):
+        chunk = all_streams[start : start + BATCH_SIZE]
+        res = pb.send(
+            "/api/batch",
+            {
+                "method": "POST",
+                "body": {
+                    "requests": [
+                        {
+                            "method": "PUT",
+                            "url": "/api/collections/audio_streams/records",
+                            "body": {
+                                "id": hash_dict(stream),
+                                **stream,
+                            },
+                        }
+                        for stream in chunk
+                    ],
+                },
+            },
+        )
+        uploaded += len(res)
 
-    for stream in tqdm(all_streams, ncols=80):
-        md5 = hash_dict(stream)
+    print(f"Upserted {uploaded:,} streams")

@@ -9,3 +9,4 @@
 ## Project notes
 
 - The SvelteKit frontend uses `@sveltejs/adapter-vercel` with an explicit Node runtime so Vercel does not dynamically install an adapter during builds.
+- Live Spotify stream IDs must remain 32 characters because the PocketBase `audio_streams.id` field enforces a 32-character minimum.

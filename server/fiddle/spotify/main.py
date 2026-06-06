@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from fiddle.db.utils import batch_upsert_records
 from fiddle.db.utils import pocketbase_client
 from fiddle.db.utils import resolve_pocketbase_url
+from fiddle.utils import hash_dict
 
 from spotify.auth import load_config
 from spotify.auth import refresh_access_token
@@ -163,8 +164,16 @@ def start_active_stream(
     if not track or playback.get("currently_playing_type") != "track":
         return None
 
+    started_at_ms = int(time.time() * 1000)
+
     return ActiveStream(
-        id=f"spotifyapi{int(time.time() * 1000)}",
+        id=hash_dict(
+            {
+                "source": "spotify-api",
+                "started_at_ms": started_at_ms,
+                "track_uri": track.get("uri"),
+            }
+        ),
         track=track,
         max_progress_ms=playback.get("progress_ms") or 0,
         duration_ms=track.get("duration_ms") or 0,

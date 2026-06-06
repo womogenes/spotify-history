@@ -42,8 +42,8 @@ def batch_upsert_records(
                         "method": "PUT",
                         "url": f"/api/collections/{collection_name}/records",
                         "body": {
-                            "id": hash_dict(record),
                             **record,
+                            "id": record.get("id") or hash_dict(record),
                         },
                     }
                     for record in records

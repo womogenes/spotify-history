@@ -33,6 +33,7 @@ TRACK_DONE_THRESHOLD_RATIO = 0.9
 
 @dataclass
 class ActiveStream:
+    id: str
     track: dict[str, Any]
     max_progress_ms: int
     duration_ms: int
@@ -49,6 +50,7 @@ def utc_now() -> str:
 
 
 def track_to_stream(
+    record_id: str,
     track: dict[str, Any],
     ts: str,
     ms_played: int,
@@ -68,6 +70,7 @@ def track_to_stream(
     album_artist = album_artists[0]["name"] if album_artists else artist
 
     return {
+        "id": record_id,
         "ts": ts,
         "source": "spotify-api",
         "platform": "spotify_api",
@@ -161,6 +164,7 @@ def start_active_stream(
         return None
 
     return ActiveStream(
+        id=f"spotifyapi{int(time.time() * 1000)}",
         track=track,
         max_progress_ms=playback.get("progress_ms") or 0,
         duration_ms=track.get("duration_ms") or 0,
@@ -178,6 +182,7 @@ def finalize_active_stream(
         active_stream.duration_ms,
     )
     return track_to_stream(
+        record_id=active_stream.id,
         track=active_stream.track,
         ts=utc_now(),
         ms_played=active_stream.max_progress_ms,
@@ -228,13 +233,6 @@ def poll_once(
             playback.get("progress_ms") or 0,
         )
         active_stream.shuffle = bool(playback.get("shuffle_state"))
-        if not playback.get("is_playing"):
-            upserted = upload_active_stream(
-                pb_client,
-                active_stream,
-                reason_end="endplay",
-            )
-            return upserted, None
         return 0, active_stream
 
     previous_done = is_track_done(

@@ -1,7 +1,5 @@
 """Small CLI for Spotify user auth and recently played tracks."""
 
-from __future__ import annotations
-
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -9,7 +7,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 import json
-import os
 import secrets
 import time
 import webbrowser
@@ -22,7 +19,7 @@ AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 RECENT_TRACKS_URL = "https://api.spotify.com/v1/me/player/recently-played"
 DEFAULT_REDIRECT_URI = "http://127.0.0.1:8787/callback"
-DEFAULT_SCOPE = "user-read-recently-played"
+DEFAULT_SCOPE = "user-read-playback-state user-read-recently-played"
 ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
 
 
@@ -179,6 +176,37 @@ def wait_for_auth_code(redirect_uri: str, expected_state: str, timeout: int) -> 
     return code
 
 
+def parse_manual_auth_input(value: str, expected_state: str) -> str:
+    value = value.strip()
+    if not value:
+        raise RuntimeError("No authorization code or callback URL was provided.")
+
+    if "://" not in value:
+        return value
+
+    parsed = urlparse(value)
+    params = parse_qs(parsed.query)
+
+    if "error" in params:
+        raise RuntimeError(f"Spotify returned an error: {params['error'][0]}")
+    if params.get("state", [None])[0] != expected_state:
+        raise RuntimeError("Spotify returned a mismatched state value.")
+
+    code = params.get("code", [None])[0]
+    if not code:
+        raise RuntimeError("Callback URL did not include an authorization code.")
+    return code
+
+
+def prompt_for_auth_code(expected_state: str) -> str:
+    print()
+    print(
+        "After approving, paste the full redirected callback URL here. "
+        "If your browser only shows the code, paste just the code."
+    )
+    return parse_manual_auth_input(input("Callback URL or code: "), expected_state)
+
+
 def fetch_recent_tracks(access_token: str, limit: int) -> dict[str, Any]:
     response = requests.get(
         RECENT_TRACKS_URL,
@@ -217,7 +245,9 @@ def handle_authorize(args: Any) -> int:
         webbrowser.open(url)
 
     if args.code:
-        code = args.code
+        code = parse_manual_auth_input(args.code, expected_state=state)
+    elif args.manual or args.no_browser:
+        code = prompt_for_auth_code(expected_state=state)
     else:
         code = wait_for_auth_code(config.redirect_uri, expected_state=state, timeout=args.timeout)
 
@@ -276,12 +306,17 @@ def build_parser() -> ArgumentParser:
     )
     authorize.add_argument(
         "--code",
-        help="Optional manual authorization code if you completed the flow elsewhere.",
+        help="Manual authorization code or full redirected callback URL.",
+    )
+    authorize.add_argument(
+        "--manual",
+        action="store_true",
+        help="Headless flow: print the URL and prompt for the callback URL or code.",
     )
     authorize.add_argument(
         "--no-browser",
         action="store_true",
-        help="Print the URL without trying to open a browser.",
+        help="Print the URL without trying to open a browser, then prompt manually.",
     )
     authorize.add_argument(
         "--print-only",

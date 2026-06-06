@@ -8,6 +8,7 @@ from datetime import timezone
 from pathlib import Path
 from typing import Any
 import logging
+import signal
 import time
 
 import pocketbase
@@ -187,6 +188,15 @@ def finalize_active_stream(
     )
 
 
+def upload_active_stream(
+    pb_client: pocketbase.Client,
+    active_stream: ActiveStream,
+    reason_end: str,
+) -> int:
+    stream = finalize_active_stream(active_stream, reason_end=reason_end)
+    return batch_upsert_records(pb_client, COLLECTION_NAME, [stream])
+
+
 def poll_once(
     pb_client: pocketbase.Client,
     token_provider: SpotifyAccessToken,
@@ -208,6 +218,8 @@ def poll_once(
         return batch_upsert_records(pb_client, COLLECTION_NAME, [stream]), None
 
     if active_stream is None:
+        if not playback.get("is_playing"):
+            return 0, None
         return 0, start_active_stream(playback, reason_start=None)
 
     if current_track_uri == active_track_uri:
@@ -216,6 +228,13 @@ def poll_once(
             playback.get("progress_ms") or 0,
         )
         active_stream.shuffle = bool(playback.get("shuffle_state"))
+        if not playback.get("is_playing"):
+            upserted = upload_active_stream(
+                pb_client,
+                active_stream,
+                reason_end="endplay",
+            )
+            return upserted, None
         return 0, active_stream
 
     previous_done = is_track_done(
@@ -227,10 +246,7 @@ def poll_once(
     stream = finalize_active_stream(active_stream, reason_end=reason_end)
     next_active_stream = start_active_stream(playback, reason_start=reason_start)
 
-    return (
-        batch_upsert_records(pb_client, COLLECTION_NAME, [stream]),
-        next_active_stream,
-    )
+    return batch_upsert_records(pb_client, COLLECTION_NAME, [stream]), next_active_stream
 
 
 def poll_forever() -> None:
@@ -250,20 +266,38 @@ def poll_forever() -> None:
     pb_client = pocketbase_client(pb_url)
     token_provider = SpotifyAccessToken()
     active_stream = None
+    should_stop = False
 
-    while True:
-        try:
-            upserted, active_stream = poll_once(
-                pb_client=pb_client,
-                token_provider=token_provider,
-                active_stream=active_stream,
+    def request_stop(signum: int, frame: Any) -> None:
+        nonlocal should_stop
+        should_stop = True
+        logging.info("Received signal %s; flushing active stream before exit", signum)
+
+    signal.signal(signal.SIGINT, request_stop)
+    signal.signal(signal.SIGTERM, request_stop)
+
+    try:
+        while not should_stop:
+            try:
+                upserted, active_stream = poll_once(
+                    pb_client=pb_client,
+                    token_provider=token_provider,
+                    active_stream=active_stream,
+                )
+                logging.info("Upserted %s stream(s)", upserted)
+
+            except Exception:
+                logging.exception("Polling iteration failed")
+
+            time.sleep(POLL_INTERVAL_SECONDS)
+    finally:
+        if active_stream is not None:
+            upserted = upload_active_stream(
+                pb_client,
+                active_stream,
+                reason_end="endplay",
             )
-            logging.info("Upserted %s stream(s)", upserted)
-
-        except Exception:
-            logging.exception("Polling iteration failed")
-
-        time.sleep(POLL_INTERVAL_SECONDS)
+            logging.info("Flushed %s active stream(s)", upserted)
 
 
 if __name__ == "__main__":

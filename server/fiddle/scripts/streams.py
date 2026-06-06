@@ -7,7 +7,7 @@ def get_all_streams():
     Load all ~130k streams (as of July 2025)
     """
     audio_file_pattern = str(
-        Path(__file__).parents[1] / "data/spotify/**/Streaming_History_Audio_*.json"
+        Path(__file__).parents[2] / "data/spotify/**/Streaming_History_Audio_*.json"
     )
 
     # Cursed Python lol

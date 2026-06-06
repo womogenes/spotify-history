@@ -1,10 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "server"
+name = "fiddle"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
+    "matplotlib>=3.10.9",
+    "pandas>=3.0.2",
     "pocketbase>=0.15.0",
     "python-dotenv>=1.2.2",
     "requests>=2.33.1",
     "tqdm>=4.67.3",
+]
+
+[tool.setuptools.packages.find]
+include = ["fiddle*"]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.2.0",
+    "jupyter>=1.1.1",
 ]

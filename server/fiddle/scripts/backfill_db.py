@@ -3,7 +3,6 @@ Backfill the pocketbase with existing streaming history
 """
 
 from pathlib import Path
-import glob
 import json
 import hashlib
 from tqdm import tqdm
@@ -13,7 +12,7 @@ import pocketbase
 from dotenv import load_dotenv
 import os
 
-from streams import get_all_streams
+from fiddle.scripts.streams import get_all_streams
 
 load_dotenv(str(Path(__file__).parents[1] / ".env"))
 
